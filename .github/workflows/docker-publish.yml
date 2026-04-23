@@ -1,0 +1,14 @@
+name: Docker Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f services/api/Dockerfile -t py01-api:latest .
+      - name: Build Search image
+        run: docker build -f services/search/Dockerfile -t py01-search:latest .
