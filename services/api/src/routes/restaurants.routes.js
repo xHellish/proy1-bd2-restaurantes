@@ -15,8 +15,12 @@ const restaurantService = new RestaurantService();
  *         description: OK
  */
 router.get("/", async (req, res) => {
-  const data = await restaurantService.listRestaurants();
-  return res.status(200).json(data);
+  try {
+    const data = await restaurantService.listRestaurants();
+    return res.status(200).json(data);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
 });
 
 /**
@@ -29,8 +33,12 @@ router.get("/", async (req, res) => {
  *         description: Creado
  */
 router.post("/", auth, async (req, res) => {
-  const created = await restaurantService.createRestaurant(req.body);
-  return res.status(201).json(created);
+  try {
+    const created = await restaurantService.createRestaurant(req.body);
+    return res.status(201).json(created);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
 });
 
 module.exports = router;

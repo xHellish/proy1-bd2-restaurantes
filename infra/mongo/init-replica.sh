@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-sleep 8
+echo "Esperando a que mongo1 este listo..."
+until mongosh --host mongo1:27017 --eval "db.adminCommand('ping')" --quiet; do
+  echo "  mongo1 no disponible aun, reintentando en 2s..."
+  sleep 2
+done
 
+echo "Iniciando replica set rs0..."
 mongosh --host mongo1:27017 <<EOF
 rs.initiate({
   _id: "rs0",
@@ -13,3 +18,5 @@ rs.initiate({
   ]
 })
 EOF
+
+echo "Replica set iniciado correctamente."

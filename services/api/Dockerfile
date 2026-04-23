@@ -2,11 +2,15 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install
+# Copiar manifiestos de todos los workspaces para aprovechar cache de capas
+COPY package.json package-lock.json ./
+COPY services/api/package.json services/api/
+COPY services/search/package.json services/search/
+RUN npm ci
 
+# Copiar el resto del código fuente
 COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start"]
+CMD ["npm", "--workspace", "services/api", "run", "start"]
