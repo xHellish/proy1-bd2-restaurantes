@@ -34,7 +34,7 @@ jobs:
           - 5432:5432
 
       mongodb:
-        image: mongo:7-alpine
+        image: mongo:8
         options: >-
           --health-cmd mongosh --eval 'db.adminCommand("ping")'
           --health-interval 10s
@@ -54,7 +54,7 @@ jobs:
           - 6379:6379
 
       elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
         env:
           discovery.type: single-node
           xpack.security.enabled: "false"
@@ -92,11 +92,11 @@ jobs:
           cat > .env.test << EOF
           NODE_ENV=test
           DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db
-          MONGODB_URI=mongodb://localhost:27017/test_db
+          MONGO_URI=mongodb://localhost:27017/test_db
           REDIS_URL=redis://localhost:6379
-          ELASTICSEARCH_URL=http://localhost:9200
-          API_PORT=3001
-          SEARCH_PORT=3002
+          ELASTIC_URL=http://localhost:9200
+          API_PORT=3000
+          SEARCH_PORT=4000
           EOF
 
       - name: Run tests with coverage
@@ -104,9 +104,9 @@ jobs:
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-          MONGODB_URI: mongodb://localhost:27017/test_db
+          MONGO_URI: mongodb://localhost:27017/test_db
           REDIS_URL: redis://localhost:6379
-          ELASTICSEARCH_URL: http://localhost:9200
+          ELASTIC_URL: http://localhost:9200
 
       - name: Verify coverage threshold
         run: |

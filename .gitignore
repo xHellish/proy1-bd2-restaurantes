@@ -8,7 +8,6 @@ backen_design.md
 actual_status.md
 .github/LOCAL_TESTING.md
 .github/PIPELINE.md
-docs
 
 # Node
 node_modules/
@@ -38,7 +37,7 @@ pids/
 # Env files
 .env
 .env.*
-.env.example
+!.env.example
 
 # Local overrides
 *.local
@@ -50,11 +49,6 @@ dist/
 build/
 tmp/
 temp/
-docker-compose.test.yml
-services/api/jest.config.js
-services/api/tests
-services/search/jest.config.js
-services/search/tests
 
 # Prisma / DB local files
 *.db
