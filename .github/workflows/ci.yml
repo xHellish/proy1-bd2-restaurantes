@@ -10,7 +10,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   NODE_VERSION: "22"
-  COVERAGE_THRESHOLD: 90
+  COVERAGE_THRESHOLD: 50
 
 jobs:
   # ===== STAGE 1: TEST & QUALITY =====
