@@ -99,14 +99,30 @@ jobs:
           SEARCH_PORT=4000
           EOF
 
-      - name: Run tests with coverage
-        run: npm test -- --coverage --coverageReporters=json-summary
+      - name: Run API tests with coverage
+        run: npm --workspace services/api test -- --coverage --coverageReporters=json-summary
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
           MONGO_URI: mongodb://localhost:27017/test_db
           REDIS_URL: redis://localhost:6379
           ELASTIC_URL: http://localhost:9200
+
+      - name: Run Search tests with coverage
+        run: npm --workspace services/search test -- --coverage --coverageReporters=json-summary
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          MONGO_URI: mongodb://localhost:27017/test_db
+          REDIS_URL: redis://localhost:6379
+          ELASTIC_URL: http://localhost:9200
+
+      - name: Debug coverage outputs
+        run: |
+          ls -la services/api/coverage || true
+          ls -la services/search/coverage || true
+          cat services/api/coverage/coverage-summary.json || true
+          cat services/search/coverage/coverage-summary.json || true
 
       - name: Verify coverage threshold
         run: |
@@ -119,33 +135,34 @@ jobs:
 
           let covered = 0;
           let total = 0;
+          let foundAny = false;
 
           for (const p of paths) {
             if (!fs.existsSync(p)) continue;
+            foundAny = true;
             const json = JSON.parse(fs.readFileSync(p, 'utf8'));
             covered += json.total?.lines?.covered ?? 0;
             total += json.total?.lines?.total ?? 0;
           }
 
-          const pct = total > 0 ? (covered / total) * 100 : 0;
+          if (!foundAny) {
+            console.error(`No coverage summary files found. Expected one of:\n- ${paths.join('\n- ')}`);
+            process.exit(2);
+          }
+
+          if (total === 0) {
+            console.error('Coverage summaries found but total lines = 0. Check Jest/coverage config.');
+            process.exit(3);
+          }
+
+          const pct = (covered / total) * 100;
           process.stdout.write(pct.toFixed(2));
           NODE
           )
 
           echo "Code coverage: ${COVERAGE}%"
-          if node -e "process.exit(Number(process.argv[1]) < Number(process.argv[2]) ? 0 : 1)" "$COVERAGE" "${{ env.COVERAGE_THRESHOLD }}"; then
-            echo "❌ Coverage ${COVERAGE}% is below threshold of ${{ env.COVERAGE_THRESHOLD }}%"
-            exit 1
-          fi
+          node -e "process.exit(Number(process.argv[1]) >= Number(process.argv[2]) ? 0 : 1)" "$COVERAGE" "${{ env.COVERAGE_THRESHOLD }}"
           echo "✅ Coverage check passed: ${COVERAGE}% >= ${{ env.COVERAGE_THRESHOLD }}%"
-
-      - name: Upload coverage reports
-        if: always()
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./services/api/coverage/coverage-summary.json,./services/search/coverage/coverage-summary.json
-          flags: unittests
-          fail_ci_if_error: false
 
   # ===== STAGE 2: BUILD & PUBLISH =====
   build-and-push:
