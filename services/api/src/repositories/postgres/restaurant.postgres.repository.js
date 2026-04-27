@@ -1,11 +1,12 @@
 const RestaurantRepository = require("../interfaces/restaurant.repository");
-const { getPrismaClient } = require("../../config/db");
+const { getPrismaClient, getPrismaInitError } = require("../../config/db");
 
 class RestaurantPostgresRepository extends RestaurantRepository {
   async list() {
     const prisma = getPrismaClient();
     if (!prisma) {
-      throw new Error("Prisma Client not generated yet");
+      const prismaError = getPrismaInitError();
+      throw new Error(prismaError?.message || "Prisma client is unavailable");
     }
 
     return prisma.restaurant.findMany({
@@ -16,7 +17,8 @@ class RestaurantPostgresRepository extends RestaurantRepository {
   async findById(id) {
     const prisma = getPrismaClient();
     if (!prisma) {
-      throw new Error("Prisma Client not generated yet");
+      const prismaError = getPrismaInitError();
+      throw new Error(prismaError?.message || "Prisma client is unavailable");
     }
 
     return prisma.restaurant.findUnique({ where: { id } });
@@ -25,7 +27,8 @@ class RestaurantPostgresRepository extends RestaurantRepository {
   async create(payload) {
     const prisma = getPrismaClient();
     if (!prisma) {
-      throw new Error("Prisma Client not generated yet");
+      const prismaError = getPrismaInitError();
+      throw new Error(prismaError?.message || "Prisma client is unavailable");
     }
 
     return prisma.restaurant.create({
@@ -36,7 +39,8 @@ class RestaurantPostgresRepository extends RestaurantRepository {
   async update(id, payload) {
     const prisma = getPrismaClient();
     if (!prisma) {
-      throw new Error("Prisma Client not generated yet");
+      const prismaError = getPrismaInitError();
+      throw new Error(prismaError?.message || "Prisma client is unavailable");
     }
 
     return prisma.restaurant.update({
@@ -48,7 +52,8 @@ class RestaurantPostgresRepository extends RestaurantRepository {
   async delete(id) {
     const prisma = getPrismaClient();
     if (!prisma) {
-      throw new Error("Prisma Client not generated yet");
+      const prismaError = getPrismaInitError();
+      throw new Error(prismaError?.message || "Prisma client is unavailable");
     }
 
     return prisma.restaurant.delete({ where: { id } });

@@ -26,18 +26,29 @@ function getPrismaClient() {
     return prisma;
   }
 
-  if (prismaLoadError) {
-    return null;
-  }
-
   try {
+    if (!env.databaseUrl) {
+      throw new Error("DATABASE_URL is not configured");
+    }
+
     const { PrismaClient } = require("@prisma/client");
-    prisma = new PrismaClient();
+    const { PrismaPg } = require("@prisma/adapter-pg");
+    const { Pool } = require("pg");
+
+    const pool = new Pool({ connectionString: env.databaseUrl });
+    const adapter = new PrismaPg(pool);
+
+    prisma = new PrismaClient({ adapter });
+    prismaLoadError = null;
     return prisma;
   } catch (error) {
     prismaLoadError = error;
     return null;
   }
+}
+
+function getPrismaInitError() {
+  return prismaLoadError;
 }
 
 async function checkPostgres() {
@@ -78,6 +89,7 @@ async function checkRedis() {
 
 module.exports = {
   getPrismaClient,
+  getPrismaInitError,
   mongoose,
   redis,
   ensureMongoConnection,
