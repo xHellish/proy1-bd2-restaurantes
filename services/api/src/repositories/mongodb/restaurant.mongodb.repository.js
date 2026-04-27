@@ -21,9 +21,24 @@ class RestaurantMongoRepository extends RestaurantRepository {
     return RestaurantModel.find({}).sort({ createdAt: -1 }).lean();
   }
 
+  async findById(id) {
+    await ensureMongoConnection();
+    return RestaurantModel.findById(id).lean();
+  }
+
   async create(payload) {
     await ensureMongoConnection();
     return RestaurantModel.create(payload);
+  }
+
+  async update(id, payload) {
+    await ensureMongoConnection();
+    return RestaurantModel.findByIdAndUpdate(id, payload, { new: true }).lean();
+  }
+
+  async delete(id) {
+    await ensureMongoConnection();
+    return RestaurantModel.findByIdAndDelete(id).lean();
   }
 }
 
