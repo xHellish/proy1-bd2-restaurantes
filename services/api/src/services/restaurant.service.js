@@ -9,8 +9,20 @@ class RestaurantService {
     return this.repository.list();
   }
 
+  async getRestaurant(id) {
+    return this.repository.findById(id);
+  }
+
   async createRestaurant(payload) {
     return this.repository.create(payload);
+  }
+
+  async updateRestaurant(id, payload) {
+    return this.repository.update(id, payload);
+  }
+
+  async deleteRestaurant(id) {
+    return this.repository.delete(id);
   }
 }
 

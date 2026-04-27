@@ -8,10 +8,33 @@ const router = express.Router();
  * @openapi
  * /api/auth/login:
  *   post:
- *     summary: Login basico para pruebas
+ *     summary: Obtener token JWT
+ *     description: |
+ *       Emite un token JWT para autenticación en endpoints protegidos.
+ *       Esta es una implementación simplificada para desarrollo/demo.
+ *       Puedes enviar un body vacío para obtener un token con valores por defecto.
+ *     tags:
+ *       - Autenticación
+ *     security: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
- *         description: Token emitido
+ *         description: Token JWT generado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       500:
+ *         description: Error interno del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 router.post("/login", (req, res) => {
   const { email = "demo@local", role = "customer" } = req.body || {};
