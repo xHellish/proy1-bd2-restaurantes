@@ -10,7 +10,19 @@ const env = require("./config/env");
 
 const app = express();
 
-app.use(helmet());
+// Helmet con CSP relajado para Swagger UI
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https://validator.swagger.io"]
+      }
+    }
+  })
+);
 app.use(cors());
 app.use(express.json());
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
@@ -21,7 +33,27 @@ app.use(
   })
 );
 
-app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+// Swagger JSON endpoint
+app.get("/api-json", (req, res) => {
+  res.json(swaggerSpec);
+});
+
+// Swagger UI
+const swaggerOptions = {
+  customSiteTitle: "PY01 Restaurantes — API Docs",
+  customCss: `
+    .swagger-ui .topbar { display: none; }
+    .swagger-ui .info .title { font-size: 2rem; }
+  `,
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true
+  }
+};
+
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerOptions));
 app.use("/api", routes);
 
 app.get("/", (req, res) => {
@@ -29,7 +61,6 @@ app.get("/", (req, res) => {
 });
 
 // Handler global de errores — debe ir al final, despues de todas las rutas
-// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
