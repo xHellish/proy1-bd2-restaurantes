@@ -11,6 +11,13 @@ RUN npm ci
 # Copiar el resto del código fuente
 COPY . .
 
+# Prisma 7 requiere DATABASE_URL también para `prisma generate`
+ARG DATABASE_URL=postgresql://postgres:postgres@postgres:5432/restaurantes
+ENV DATABASE_URL=${DATABASE_URL}
+
+# Generar Prisma Client para que esté disponible en runtime
+RUN npm --workspace services/api run prisma:generate
+
 EXPOSE 3000
 
 CMD ["npm", "--workspace", "services/api", "run", "start"]
