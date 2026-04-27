@@ -13,30 +13,6 @@ const router = express.Router();
  *       - Caché
  *     security:
  *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Estadísticas de Redis obtenidas exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                 info:
- *                   type: string
- *                   description: Información raw de Redis INFO stats
- *       503:
- *         description: Redis no disponible
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                 error:
- *                   type: string
  */
 router.get("/stats", async (req, res) => {
   try {

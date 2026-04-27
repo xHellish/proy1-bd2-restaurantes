@@ -22,19 +22,6 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/LoginRequest'
- *     responses:
- *       200:
- *         description: Token JWT generado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/LoginResponse'
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.post("/login", (req, res) => {
   const { email = "demo@local", role = "customer" } = req.body || {};

@@ -27,26 +27,6 @@ const restaurantService = new RestaurantService();
  *           type: integer
  *           default: 0
  *         description: Salto de resultados para paginación
- *     responses:
- *       200:
- *         description: Listado de restaurantes obtenido exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Restaurant'
- *                 total:
- *                   type: integer
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/", async (req, res) => {
   try {
@@ -73,31 +53,6 @@ router.get("/", async (req, res) => {
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/RestaurantInput'
- *     responses:
- *       201:
- *         description: Restaurante creado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Restaurant'
- *       400:
- *         description: Datos inválidos o incompletos
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       401:
- *         description: No autorizado — token inválido o ausente
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.post("/", auth, async (req, res) => {
   try {
@@ -124,25 +79,6 @@ router.post("/", auth, async (req, res) => {
  *         schema:
  *           type: string
  *         description: ID del restaurante
- *     responses:
- *       200:
- *         description: Restaurante encontrado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Restaurant'
- *       404:
- *         description: Restaurante no encontrado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/:id", async (req, res) => {
   try {
@@ -179,31 +115,6 @@ router.get("/:id", async (req, res) => {
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/RestaurantInput'
- *     responses:
- *       200:
- *         description: Restaurante actualizado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Restaurant'
- *       401:
- *         description: No autorizado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: Restaurante no encontrado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.put("/:id", auth, async (req, res) => {
   try {
@@ -234,34 +145,6 @@ router.put("/:id", auth, async (req, res) => {
  *         schema:
  *           type: string
  *         description: ID del restaurante
- *     responses:
- *       200:
- *         description: Restaurante eliminado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *       401:
- *         description: No autorizado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: Restaurante no encontrado
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.delete("/:id", auth, async (req, res) => {
   try {

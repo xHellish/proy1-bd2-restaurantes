@@ -15,33 +15,6 @@ const router = express.Router();
  *     tags:
  *       - Salud
  *     security: []
- *     responses:
- *       200:
- *         description: Estado actual de los servicios
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   enum: [ok, degraded]
- *                   description: Estado general
- *                 services:
- *                   type: object
- *                   properties:
- *                     postgres:
- *                       $ref: '#/components/schemas/ServiceStatus'
- *                     mongodb:
- *                       $ref: '#/components/schemas/ServiceStatus'
- *                     redis:
- *                       $ref: '#/components/schemas/ServiceStatus'
- *       500:
- *         description: Error interno del servidor
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get("/", async (req, res) => {
   const [postgres, mongodb, redis] = await Promise.all([
