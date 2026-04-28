@@ -4,6 +4,8 @@ const cors = require("cors");
 const morgan = require("morgan");
 const healthRoutes = require("./routes/health.routes");
 const searchRoutes = require("./routes/search.routes");
+const productsSearchRoutes = require("./routes/products.search.routes");
+const reindexRoutes = require("./routes/reindex.routes");
 const env = require("./config/env");
 
 const app = express();
@@ -15,6 +17,8 @@ app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 
 app.use("/health", healthRoutes);
 app.use("/search", searchRoutes);
+app.use("/search/products", productsSearchRoutes);
+app.use("/search/reindex", reindexRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({ service: "search", status: "ok" });
@@ -30,3 +34,4 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+
