@@ -109,6 +109,13 @@ const options = {
               default: "customer",
               description: "Rol del usuario"
             }
+            ,
+            password: {
+              type: "string",
+              minLength: 6,
+              example: "secret123",
+              description: "Contraseña del usuario"
+            }
           }
         },
         LoginResponse: {
@@ -140,9 +147,13 @@ const options = {
         },
         UserInput: {
           type: "object",
-          required: ["name", "email", "password", "role"],
+          required: ["email", "password", "role"],
           properties: {
-            name: { type: "string", example: "Juan Pérez" },
+            name: {
+              type: "string",
+              example: "Juan Pérez",
+              description: "Opcional; si no se envía, se deriva del email"
+            },
             email: {
               type: "string",
               format: "email",
@@ -417,4 +428,30 @@ const options = {
   apis: [path.join(__dirname, "../routes/*.js")]
 };
 
-module.exports = swaggerJsdoc(options);
+// Generate the spec and ensure every operation has at least a minimal `responses` object
+const swaggerSpec = swaggerJsdoc(options);
+
+// Add default responses where missing so the UI shows response sections
+Object.keys(swaggerSpec.paths || {}).forEach((p) => {
+  const pathItem = swaggerSpec.paths[p];
+  ["get", "post", "put", "delete", "patch"].forEach((method) => {
+    if (pathItem[method] && !pathItem[method].responses) {
+      if (method === "post") {
+        pathItem[method].responses = {
+          "201": { description: "Created" },
+          "400": { description: "Bad request" },
+          "401": { description: "Unauthorized" },
+          "500": { description: "Internal server error" }
+        };
+      } else {
+        pathItem[method].responses = {
+          "200": { description: "Successful response" },
+          "401": { description: "Unauthorized" },
+          "500": { description: "Internal server error" }
+        };
+      }
+    }
+  });
+});
+
+module.exports = swaggerSpec;
