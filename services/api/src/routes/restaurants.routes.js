@@ -4,6 +4,17 @@ const auth = require("../middlewares/auth");
 
 const router = express.Router();
 const restaurantService = new RestaurantService();
+const ALLOWED_ROLES = new Set(["admin", "customer"]);
+
+function requireRole(allowedRoles) {
+  return (req, res, next) => {
+    const role = req.user?.role;
+    if (!role || !ALLOWED_ROLES.has(role) || !allowedRoles.includes(role)) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    return next();
+  };
+}
 
 /**
  * @openapi
@@ -42,7 +53,7 @@ router.get("/", async (req, res) => {
  * /api/restaurants:
  *   post:
  *     summary: Crear restaurante
- *     description: Crea un nuevo restaurante en la base de datos. Requiere autenticación JWT.
+ *     description: Crea un nuevo restaurante en la base de datos. Requiere autenticación JWT. Solo admin.
  *     tags:
  *       - Restaurantes
  *     security:
@@ -54,7 +65,7 @@ router.get("/", async (req, res) => {
  *           schema:
  *             $ref: '#/components/schemas/RestaurantInput'
  */
-router.post("/", auth, async (req, res) => {
+router.post("/", auth, requireRole(["admin"]), async (req, res) => {
   try {
     const created = await restaurantService.createRestaurant(req.body);
     return res.status(201).json(created);
@@ -116,7 +127,7 @@ router.get("/:id", async (req, res) => {
  *           schema:
  *             $ref: '#/components/schemas/RestaurantInput'
  */
-router.put("/:id", auth, async (req, res) => {
+router.put("/:id", auth, requireRole(["admin", "customer"]), async (req, res) => {
   try {
     const updated = await restaurantService.updateRestaurant(req.params.id, req.body);
     if (!updated) {
@@ -133,7 +144,7 @@ router.put("/:id", auth, async (req, res) => {
  * /api/restaurants/{id}:
  *   delete:
  *     summary: Eliminar restaurante
- *     description: Elimina un restaurante por su ID. Requiere autenticación JWT.
+ *     description: Elimina un restaurante por su ID. Requiere autenticación JWT. Solo admin.
  *     tags:
  *       - Restaurantes
  *     security:
@@ -146,7 +157,7 @@ router.put("/:id", auth, async (req, res) => {
  *           type: string
  *         description: ID del restaurante
  */
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", auth, requireRole(["admin"]), async (req, res) => {
   try {
     const deleted = await restaurantService.deleteRestaurant(req.params.id);
     if (!deleted) {
