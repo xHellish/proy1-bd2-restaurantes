@@ -20,4 +20,5 @@ RUN npm --workspace services/api run prisma:generate
 
 EXPOSE 3000
 
-CMD ["npm", "--workspace", "services/api", "run", "start"]
+# Ejecutar migraciones y luego iniciar la app
+CMD ["sh", "-c", "npm --workspace services/api run prisma:deploy && npm --workspace services/api run start"]

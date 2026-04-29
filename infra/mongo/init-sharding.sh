@@ -22,32 +22,22 @@ EOF
 echo "Replica set iniciado correctamente."
 
 echo "Esperando a que replica set esté en estado PRIMARY..."
-sleep 5
+sleep 3
 
 echo "Habilitando sharding..."
 mongosh --host mongo1:27017 <<EOF
 // Habilitar sharding en la base de datos
-db.adminCommand({ enableSharding: "restaurantes" })
+sh.enableSharding("restaurantes")
 
-// Crear índices para shard keys
-db = db.getSiblingDB("restaurantes")
+// Crear shard keys
 db.products.createIndex({ _id: "hashed" })
+sh.shardCollection("restaurantes.products", { _id: "hashed" })
+
 db.reservations.createIndex({ userId: "hashed" })
-
-// Habilitar sharding en colecciones
-db.adminCommand({
-  shardCollection: "restaurantes.products",
-  key: { _id: "hashed" }
-})
-
-db.adminCommand({
-  shardCollection: "restaurantes.reservations",
-  key: { userId: "hashed" }
-})
+sh.shardCollection("restaurantes.reservations", { userId: "hashed" })
 
 // Verificar sharding
-print("Sharding status:")
-db.adminCommand({ shardingState: 1 })
+sh.status()
 EOF
 
 echo "Sharding configurado correctamente."

@@ -7,6 +7,7 @@ const searchRoutes = require("./routes/search.routes");
 const productsSearchRoutes = require("./routes/products.search.routes");
 const reindexRoutes = require("./routes/reindex.routes");
 const env = require("./config/env");
+const { cacheMiddleware } = require("./middlewares/cache.middleware");
 
 const app = express();
 
@@ -14,6 +15,9 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
+
+// Cache search results for 10 minutes
+app.use("/search/products", cacheMiddleware(600));
 
 app.use("/health", healthRoutes);
 app.use("/search", searchRoutes);
@@ -38,5 +42,3 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
-
-

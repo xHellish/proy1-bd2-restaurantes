@@ -72,4 +72,43 @@ router.get("/", async (req, res) => {
   }
 });
 
+/**
+ * @openapi
+ * /search/products/category/{categoryId}:
+ *   get:
+ *     summary: Filtrar productos por categoría
+ *     description: Retorna productos filtrados por categoría específica
+ *     tags:
+ *       - Búsqueda
+ *     parameters:
+ *       - in: path
+ *         name: categoryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID de la categoría
+ */
+router.get("/category/:categoryId", async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+
+    if (!categoryId.trim()) {
+      return res.status(400).json({ message: "Category ID is required" });
+    }
+
+    const response = await elastic.search({
+      index: "products",
+      query: {
+        term: {
+          categoryId: categoryId
+        }
+      }
+    });
+
+    return res.status(200).json(response.hits.hits.map((hit) => hit._source));
+  } catch (error) {
+    return res.status(503).json({ message: "Search service unavailable", error: error.message });
+  }
+});
+
 module.exports = router;

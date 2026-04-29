@@ -1,7 +1,11 @@
 const bcrypt = require("bcryptjs");
-const { getPrismaClient, getPrismaInitError } = require("../config/db");
+const { getUserRepository } = require("../repositories");
 
 class AuthService {
+  constructor() {
+    this.userRepository = getUserRepository();
+  }
+
   async registerUser(payload) {
     const email = payload.email?.trim().toLowerCase();
     const password = payload.password;
@@ -15,23 +19,14 @@ class AuthService {
       throw new Error("Role must be admin or customer");
     }
 
-    const prisma = getPrismaClient();
-
-    if (!prisma) {
-      const prismaError = getPrismaInitError();
-      throw new Error(prismaError?.message || "Prisma client is unavailable");
-    }
-
     const passwordHash = await bcrypt.hash(password, 10);
     const name = payload.name?.trim() || email.split("@")[0];
 
-    return prisma.user.create({
-      data: {
-        name,
-        email,
-        passwordHash,
-        role
-      }
+    return this.userRepository.create({
+      name,
+      email,
+      passwordHash,
+      role
     });
   }
 
@@ -41,14 +36,7 @@ class AuthService {
       throw new Error("Email and password are required");
     }
 
-    const prisma = getPrismaClient();
-
-    if (!prisma) {
-      const prismaError = getPrismaInitError();
-      throw new Error(prismaError?.message || "Prisma client is unavailable");
-    }
-
-    const user = await prisma.user.findUnique({ where: { email: e } });
+    const user = await this.userRepository.findByEmail(e);
 
     if (!user) {
       throw new Error("Invalid credentials");

@@ -7,6 +7,7 @@ const swaggerUi = require("swagger-ui-express");
 const routes = require("./routes");
 const swaggerSpec = require("./docs/swagger");
 const env = require("./config/env");
+const { cacheMiddleware, invalidateCacheMiddleware } = require("./middlewares/cache.middleware");
 
 const app = express();
 
@@ -32,6 +33,12 @@ app.use(
     limit: 300
   })
 );
+
+// Cache middlewares
+app.use("/api/products", cacheMiddleware(300)); // 5 minutes
+app.use("/api/menus", cacheMiddleware(600)); // 10 minutes
+app.use("/api/categories", cacheMiddleware(600)); // 10 minutes
+app.use(invalidateCacheMiddleware());
 
 // Swagger JSON endpoint
 app.get("/api-json", (req, res) => {

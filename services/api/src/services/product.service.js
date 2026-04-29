@@ -1,4 +1,5 @@
 const { getProductRepository } = require("../repositories");
+const { indexProduct, deleteProductIndex } = require("../indexers/product.indexer");
 
 class ProductService {
   constructor() {
@@ -14,15 +15,21 @@ class ProductService {
   }
 
   async createProduct(payload) {
-    return this.repository.create(payload);
+    const product = await this.repository.create(payload);
+    await indexProduct(product);
+    return product;
   }
 
   async updateProduct(id, payload) {
-    return this.repository.update(id, payload);
+    const product = await this.repository.update(id, payload);
+    await indexProduct(product);
+    return product;
   }
 
   async deleteProduct(id) {
-    return this.repository.delete(id);
+    const result = await this.repository.delete(id);
+    await deleteProductIndex(id);
+    return result;
   }
 }
 
