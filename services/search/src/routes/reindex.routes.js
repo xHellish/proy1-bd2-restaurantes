@@ -1,5 +1,4 @@
 const express = require("express");
-const { reindexAll } = require("../indexers/reindex.service");
 
 const router = express.Router();
 
@@ -42,6 +41,8 @@ function requireReindexAuth(req, res, next) {
  */
 router.post("/", requireReindexAuth, async (req, res) => {
   try {
+    // Lazy import to avoid module loading failures during tests
+    const { reindexAll } = require("../indexers/reindex.service");
     const result = await reindexAll();
     return res.status(200).json(result);
   } catch (error) {
@@ -54,3 +55,4 @@ router.post("/", requireReindexAuth, async (req, res) => {
 });
 
 module.exports = router;
+

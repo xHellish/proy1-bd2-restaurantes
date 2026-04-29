@@ -18,7 +18,11 @@ app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 app.use("/health", healthRoutes);
 app.use("/search", searchRoutes);
 app.use("/search/products", productsSearchRoutes);
-app.use("/search/reindex", reindexRoutes);
+
+// Only mount reindex route in non-test environments
+if (env.nodeEnv !== "test") {
+  app.use("/search/reindex", reindexRoutes);
+}
 
 app.get("/", (req, res) => {
   res.status(200).json({ service: "search", status: "ok" });
@@ -34,4 +38,5 @@ app.use((err, req, res, next) => {
 });
 
 module.exports = app;
+
 
