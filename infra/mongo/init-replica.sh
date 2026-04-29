@@ -1,53 +1,27 @@
 #!/usr/bin/env bash
 set -e
 
-echo "Esperando a que mongo1 este listo..."
-until mongosh --host mongo1:27017 --eval "db.adminCommand('ping')" --quiet; do
-  echo "  mongo1 no disponible aun, reintentando en 2s..."
+echo "=== Initializing MongoDB Replica Set ==="
+
+echo "Waiting for mongo1 to be ready..."
+until mongosh --host mongo1:27017 --eval "db.adminCommand('ping')" --quiet 2>/dev/null; do
+  echo "  mongo1 not ready, retrying in 2s..."
   sleep 2
 done
 
-echo "Iniciando replica set rs0..."
-mongosh --host mongo1:27017 <<EOF
+echo "✓ MongoDB nodes are ready"
+
+echo "Initiating replica set rs0..."
+mongosh --host mongo1:27017 <<'EOF'
 rs.initiate({
   _id: "rs0",
   members: [
     { _id: 0, host: "mongo1:27017" },
-    { _id: 1, host: "mongo2:27018" },
-    { _id: 2, host: "mongo3:27019" }
+    { _id: 1, host: "mongo2:27017" },
+    { _id: 2, host: "mongo3:27017" }
   ]
 })
 EOF
 
-echo "Replica set iniciado correctamente."
-
-echo "Esperando a que replica set esté en estado PRIMARY..."
-sleep 5
-
-echo "Habilitando sharding..."
-mongosh --host mongo1:27017 <<EOF
-// Habilitar sharding en la base de datos
-db.adminCommand({ enableSharding: "restaurantes" })
-
-// Crear índices para shard keys
-db = db.getSiblingDB("restaurantes")
-db.products.createIndex({ _id: "hashed" })
-db.reservations.createIndex({ userId: "hashed" })
-
-// Habilitar sharding en colecciones
-db.adminCommand({
-  shardCollection: "restaurantes.products",
-  key: { _id: "hashed" }
-})
-
-db.adminCommand({
-  shardCollection: "restaurantes.reservations",
-  key: { userId: "hashed" }
-})
-
-// Verificar sharding
-print("Sharding status:")
-db.adminCommand({ shardingState: 1 })
-EOF
-
-echo "Sharding configurado correctamente."
+echo "✓ Replica set initialized"
+echo "=== MongoDB Setup Complete ==="

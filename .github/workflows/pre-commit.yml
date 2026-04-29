@@ -1,0 +1,64 @@
+name: Pre-commit Checks
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Check for console logs
+        run: |
+          if grep -r "console\.log\|console\.warn" services/ --include="*.js" --exclude-dir=node_modules --exclude-dir=coverage | grep -v "console\.error"; then
+            echo "❌ Found console.log/warn statements. Use console.error or logger instead."
+            exit 1
+          fi
+
+      - name: Validate package.json versions
+        run: |
+          node -e "
+          const api = require('./services/api/package.json');
+          const search = require('./services/search/package.json');
+          
+          const checkVersions = (pkg, name) => {
+            Object.entries(pkg.dependencies || {}).forEach(([dep, version]) => {
+              if (/[\^~]/.test(version)) {
+                console.error(\`❌ \${name}: \${dep} has non-pinned version: \${version}\`);
+                process.exit(1);
+              }
+            });
+          };
+          
+          checkVersions(api, 'API');
+          checkVersions(search, 'Search');
+          console.log('✅ All versions are pinned');
+          "
+
+      - name: Check memory limits in docker-compose
+        run: |
+          if ! grep -q "mem_limit:" docker-compose.yml; then
+            echo "⚠️  Warning: Some services missing mem_limit"
+          else
+            echo "✅ Memory limits configured"
+          fi

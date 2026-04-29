@@ -1,7 +1,7 @@
 # PY01 Restaurantes - Professional Microservices Architecture
 
 **Repo**: https://github.com/xHellish/proy1-bd2-restaurantes  
-**Swagger UI**: http://localhost:3000/api/docs (después de `docker-compose up`)
+**Swagger UI**: http://localhost/api/docs (después de `docker-compose up`)
 
 ## Descripción General
 

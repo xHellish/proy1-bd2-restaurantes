@@ -1,43 +1,60 @@
 #!/usr/bin/env bash
 set -e
 
-echo "Esperando a que mongo1 este listo..."
-until mongosh --host mongo1:27017 --eval "db.adminCommand('ping')" --quiet; do
-  echo "  mongo1 no disponible aun, reintentando en 2s..."
+echo "=== Configuring Sharding on Mongos ==="
+
+echo "Waiting for mongos to be ready..."
+until mongosh --host mongos:27017 --eval "db.adminCommand('ping')" --quiet 2>/dev/null; do
+  echo "  Mongos not ready yet, retrying in 2s..."
   sleep 2
 done
 
-echo "Iniciando replica set rs0..."
-mongosh --host mongo1:27017 <<EOF
-rs.initiate({
-  _id: "rs0",
-  members: [
-    { _id: 0, host: "mongo1:27017" },
-    { _id: 1, host: "mongo2:27018" },
-    { _id: 2, host: "mongo3:27019" }
-  ]
-})
-EOF
+echo "✓ Mongos is ready"
 
-echo "Replica set iniciado correctamente."
+echo "Adding shards to the cluster..."
+mongosh --host mongos:27017 <<EOF
+// Add shard 1
+sh.addShard("shard1rs0/shard1-node1:27017,shard1-node2:27018,shard1-node3:27022")
 
-echo "Esperando a que replica set esté en estado PRIMARY..."
-sleep 3
+// Add shard 2
+sh.addShard("shard2rs0/shard2-node1:27023,shard2-node2:27024,shard2-node3:27025")
 
-echo "Habilitando sharding..."
-mongosh --host mongo1:27017 <<EOF
-// Habilitar sharding en la base de datos
-sh.enableSharding("restaurantes")
-
-// Crear shard keys
-db.products.createIndex({ _id: "hashed" })
-sh.shardCollection("restaurantes.products", { _id: "hashed" })
-
-db.reservations.createIndex({ userId: "hashed" })
-sh.shardCollection("restaurantes.reservations", { userId: "hashed" })
-
-// Verificar sharding
+// Display shard status
 sh.status()
 EOF
 
-echo "Sharding configurado correctamente."
+echo "✓ Shards added successfully"
+
+echo "Enabling sharding on database and collections..."
+mongosh --host mongos:27017 <<EOF
+// Enable sharding on the database
+sh.enableSharding("restaurantes")
+
+// Create indexes and shard collections
+use restaurantes
+
+// Shard products collection by productId (hash sharding for even distribution)
+db.products.createIndex({ productId: "hashed" })
+sh.shardCollection("restaurantes.products", { productId: "hashed" })
+
+// Shard reservations by userId for tenant isolation
+db.reservations.createIndex({ userId: "hashed" })
+sh.shardCollection("restaurantes.reservations", { userId: "hashed" })
+
+// Shard menus by restaurantId
+db.menus.createIndex({ restaurantId: "hashed" })
+sh.shardCollection("restaurantes.menus", { restaurantId: "hashed" })
+
+// Display final sharding configuration
+sh.status()
+EOF
+
+echo "✓ Sharding configured on all collections"
+
+echo "=== Sharding Configuration Complete ==="
+echo ""
+echo "Cluster Information:"
+mongosh --host mongos:27017 <<EOF
+use admin
+db.runCommand({ listShards: 1 })
+EOF

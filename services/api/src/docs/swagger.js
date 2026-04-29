@@ -28,16 +28,12 @@ const options = {
     },
     servers: [
       {
-        url: "/",
-        description: "Host actual (recomendado: funciona con API directa o vía Nginx)"
-      },
-      {
-        url: "http://localhost:3000",
-        description: "API directa (docker-compose)"
-      },
-      {
         url: "http://localhost",
-        description: "Vía Nginx gateway (puerto 80)"
+        description: "Vía Nginx gateway (puerto 80) — usar siempre este"
+      },
+      {
+        url: "/",
+        description: "Relativo al host actual"
       }
     ],
     tags: [

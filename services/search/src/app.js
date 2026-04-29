@@ -5,6 +5,7 @@ const morgan = require("morgan");
 const healthRoutes = require("./routes/health.routes");
 const searchRoutes = require("./routes/search.routes");
 const productsSearchRoutes = require("./routes/products.search.routes");
+const advancedSearchRoutes = require("./routes/advanced-search.routes");
 const reindexRoutes = require("./routes/reindex.routes");
 const env = require("./config/env");
 const { cacheMiddleware } = require("./middlewares/cache.middleware");
@@ -18,10 +19,12 @@ app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 
 // Cache search results for 10 minutes
 app.use("/search/products", cacheMiddleware(600));
+app.use("/search/advanced", cacheMiddleware(600));
 
 app.use("/health", healthRoutes);
 app.use("/search", searchRoutes);
 app.use("/search/products", productsSearchRoutes);
+app.use("/search/advanced", advancedSearchRoutes);
 
 // Only mount reindex route in non-test environments
 if (env.nodeEnv !== "test") {
