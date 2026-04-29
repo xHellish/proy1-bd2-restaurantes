@@ -91,7 +91,9 @@ describe("reservations routes", () => {
     it("returns 404 when reservation not found", async () => {
       mockReservationService.getReservation.mockResolvedValue(null);
 
-      const response = await request(app).get("/api/reservations/nonexistent");
+      const response = await request(app)
+        .get("/api/reservations/nonexistent")
+        .set("x-user-role", "admin");
 
       expect(response.statusCode).toBe(404);
     });
@@ -188,6 +190,7 @@ describe("reservations routes", () => {
 
       const response = await request(app)
         .put("/api/reservations/nonexistent")
+        .set("x-user-role", "admin")
         .send({ partySize: 6 });
 
       expect(response.statusCode).toBe(404);

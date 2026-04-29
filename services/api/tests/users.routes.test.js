@@ -81,7 +81,9 @@ describe("users routes", () => {
     it("returns 404 when user not found", async () => {
       mockUserService.getUser.mockResolvedValue(null);
 
-      const response = await request(app).get("/api/users/nonexistent");
+      const response = await request(app)
+        .get("/api/users/nonexistent")
+        .set("x-user-role", "admin");
 
       expect(response.statusCode).toBe(404);
     });
@@ -147,6 +149,7 @@ describe("users routes", () => {
 
       const response = await request(app)
         .put("/api/users/nonexistent")
+        .set("x-user-role", "admin")
         .send({ name: "Updated" });
 
       expect(response.statusCode).toBe(404);
