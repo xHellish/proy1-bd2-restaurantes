@@ -1,26 +1,26 @@
-const Redis = require("ioredis");
-const { cacheMiddleware, invalidateCacheMiddleware } = require("../src/middlewares/cache.middleware");
 const express = require("express");
 const request = require("supertest");
 
-// Mock Redis for tests
+// Create mock Redis instance BEFORE requiring the middleware
+const mockRedisInstance = {
+  get: jest.fn(),
+  setex: jest.fn(),
+  eval: jest.fn(),
+  flushdb: jest.fn(),
+  status: "ready"
+};
+
 jest.mock("ioredis", () => {
-  const mockRedis = {
-    get: jest.fn(),
-    setex: jest.fn(),
-    eval: jest.fn(),
-    flushdb: jest.fn()
-  };
-  return jest.fn(() => mockRedis);
+  return jest.fn(() => mockRedisInstance);
 });
+
+const { cacheMiddleware, invalidateCacheMiddleware, clearAllCache } = require("../src/middlewares/cache.middleware");
 
 describe("cache middleware", () => {
   let app;
-  let mockRedis;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockRedis = require("ioredis").__redis || {};
     app = express();
     app.use(express.json());
   });
@@ -32,9 +32,8 @@ describe("cache middleware", () => {
         res.json({ data: "test" });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.get.mockResolvedValue(null);
-      mockRedis.setex.mockResolvedValue("OK");
+      mockRedisInstance.get.mockResolvedValue(null);
+      mockRedisInstance.setex.mockResolvedValue("OK");
 
       const response = await request(app).get("/api/test");
 
@@ -49,8 +48,7 @@ describe("cache middleware", () => {
         res.json({ data: "test" });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.get.mockResolvedValue(JSON.stringify({ data: "cached" }));
+      mockRedisInstance.get.mockResolvedValue(JSON.stringify({ data: "cached" }));
 
       const response = await request(app).get("/api/test");
 
@@ -65,11 +63,10 @@ describe("cache middleware", () => {
         res.json({ created: true });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
       const response = await request(app).post("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedis.get).not.toHaveBeenCalled();
+      expect(mockRedisInstance.get).not.toHaveBeenCalled();
     });
 
     it("handles cache errors gracefully", async () => {
@@ -78,8 +75,7 @@ describe("cache middleware", () => {
         res.json({ data: "test" });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.get.mockRejectedValue(new Error("Redis error"));
+      mockRedisInstance.get.mockRejectedValue(new Error("Redis error"));
 
       const response = await request(app).get("/api/test");
 
@@ -95,13 +91,12 @@ describe("cache middleware", () => {
         res.json({ created: true });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.eval.mockResolvedValue(0);
+      mockRedisInstance.eval.mockResolvedValue(0);
 
       const response = await request(app).post("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedis.eval).toHaveBeenCalled();
+      expect(mockRedisInstance.eval).toHaveBeenCalled();
     });
 
     it("invalidates cache on PUT", async () => {
@@ -110,13 +105,12 @@ describe("cache middleware", () => {
         res.json({ updated: true });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.eval.mockResolvedValue(1);
+      mockRedisInstance.eval.mockResolvedValue(1);
 
       const response = await request(app).put("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedis.eval).toHaveBeenCalled();
+      expect(mockRedisInstance.eval).toHaveBeenCalled();
     });
 
     it("invalidates cache on DELETE", async () => {
@@ -125,13 +119,12 @@ describe("cache middleware", () => {
         res.json({ deleted: true });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.eval.mockResolvedValue(2);
+      mockRedisInstance.eval.mockResolvedValue(2);
 
       const response = await request(app).delete("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedis.eval).toHaveBeenCalled();
+      expect(mockRedisInstance.eval).toHaveBeenCalled();
     });
 
     it("does not invalidate cache on error responses", async () => {
@@ -140,11 +133,10 @@ describe("cache middleware", () => {
         res.status(400).json({ error: "bad request" });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
       const response = await request(app).post("/api/test");
 
       expect(response.statusCode).toBe(400);
-      // For error responses, invalidation shouldn't happen
+      expect(mockRedisInstance.eval).not.toHaveBeenCalled();
     });
 
     it("handles cache invalidation errors gracefully", async () => {
@@ -153,13 +145,25 @@ describe("cache middleware", () => {
         res.json({ created: true });
       });
 
-      const mockRedis = require("ioredis").mock.results[0].value;
-      mockRedis.eval.mockRejectedValue(new Error("Invalidation error"));
+      mockRedisInstance.eval.mockRejectedValue(new Error("Invalidation error"));
 
       const response = await request(app).post("/api/test");
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toEqual({ created: true });
+    });
+  });
+
+  describe("clearAllCache", () => {
+    it("flushes the database", async () => {
+      mockRedisInstance.flushdb.mockResolvedValue("OK");
+      await clearAllCache();
+      expect(mockRedisInstance.flushdb).toHaveBeenCalled();
+    });
+
+    it("handles flush errors", async () => {
+      mockRedisInstance.flushdb.mockRejectedValue(new Error("flush error"));
+      await clearAllCache(); // should not throw
     });
   });
 });

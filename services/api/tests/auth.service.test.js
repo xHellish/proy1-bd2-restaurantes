@@ -1,108 +1,164 @@
-jest.mock("../src/config/db", () => ({
-  getPrismaClient: jest.fn(),
-  getPrismaInitError: jest.fn()
-}));
+const mockCreate = jest.fn();
+const mockFindByEmail = jest.fn();
 
-jest.mock("bcryptjs", () => ({
-  hash: jest.fn()
+jest.mock("../src/repositories", () => ({
+  getUserRepository: () => ({
+    create: mockCreate,
+    findByEmail: mockFindByEmail
+  })
 }));
 
 const bcrypt = require("bcryptjs");
-const { getPrismaClient, getPrismaInitError } = require("../src/config/db");
 const AuthService = require("../src/services/auth.service");
 
 describe("AuthService", () => {
+  let service;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    service = new AuthService();
   });
 
-  it("creates an admin user in Prisma", async () => {
-    const prisma = {
-      user: {
-        create: jest.fn().mockResolvedValue({
-          id: "user-1",
+  describe("registerUser", () => {
+    it("creates an admin user", async () => {
+      mockCreate.mockResolvedValue({
+        id: "user-1",
+        name: "Admin",
+        email: "admin@example.com",
+        role: "admin"
+      });
+
+      const result = await service.registerUser({
+        name: "Admin",
+        email: "admin@example.com",
+        password: "secret123",
+        role: "admin"
+      });
+
+      expect(result.id).toBe("user-1");
+      expect(result.role).toBe("admin");
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
           name: "Admin",
           email: "admin@example.com",
           role: "admin"
         })
-      }
-    };
-
-    getPrismaClient.mockReturnValue(prisma);
-    getPrismaInitError.mockReturnValue(null);
-    bcrypt.hash.mockResolvedValue("hashed-password");
-
-    const service = new AuthService();
-    const result = await service.registerUser({
-      name: "Admin",
-      email: "admin@example.com",
-      password: "secret123",
-      role: "admin"
+      );
     });
 
-    expect(result).toEqual({
-      id: "user-1",
-      name: "Admin",
-      email: "admin@example.com",
-      role: "admin"
-    });
-    expect(bcrypt.hash).toHaveBeenCalledWith("secret123", 10);
-    expect(prisma.user.create).toHaveBeenCalledWith({
-      data: {
-        name: "Admin",
-        email: "admin@example.com",
-        passwordHash: "hashed-password",
-        role: "admin"
-      }
-    });
-  });
+    it("creates a customer user and derives name from email", async () => {
+      mockCreate.mockResolvedValue({
+        id: "user-2",
+        name: "cliente",
+        email: "cliente@example.com",
+        role: "customer"
+      });
 
-  it("creates a customer user and derives the name from email when omitted", async () => {
-    const prisma = {
-      user: {
-        create: jest.fn().mockResolvedValue({
-          id: "user-2",
+      const result = await service.registerUser({
+        email: "cliente@example.com",
+        password: "secret123"
+      });
+
+      expect(result.name).toBe("cliente");
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
           name: "cliente",
           email: "cliente@example.com",
           role: "customer"
         })
-      }
-    };
-
-    getPrismaClient.mockReturnValue(prisma);
-    getPrismaInitError.mockReturnValue(null);
-    bcrypt.hash.mockResolvedValue("hashed-password");
-
-    const service = new AuthService();
-    const result = await service.registerUser({
-      email: "cliente@example.com",
-      password: "secret123",
-      role: "customer"
+      );
     });
 
-    expect(result.name).toBe("cliente");
-    expect(prisma.user.create).toHaveBeenCalledWith({
-      data: {
-        name: "cliente",
-        email: "cliente@example.com",
-        passwordHash: "hashed-password",
+    it("rejects invalid roles", async () => {
+      await expect(
+        service.registerUser({
+          name: "X",
+          email: "x@example.com",
+          password: "secret123",
+          role: "staff"
+        })
+      ).rejects.toThrow("Role must be admin or customer");
+
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("rejects missing email", async () => {
+      await expect(
+        service.registerUser({ password: "secret123" })
+      ).rejects.toThrow("Email and password are required");
+    });
+
+    it("rejects missing password", async () => {
+      await expect(
+        service.registerUser({ email: "x@y.com" })
+      ).rejects.toThrow("Email and password are required");
+    });
+
+    it("hashes the password with bcrypt", async () => {
+      mockCreate.mockResolvedValue({ id: "1" });
+
+      await service.registerUser({
+        email: "test@test.com",
+        password: "mypassword",
         role: "customer"
-      }
+      });
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          passwordHash: expect.any(String)
+        })
+      );
     });
   });
 
-  it("rejects invalid roles", async () => {
-    const service = new AuthService();
+  describe("login", () => {
+    it("returns user on valid credentials", async () => {
+      const hashedPw = await bcrypt.hash("correct", 10);
+      mockFindByEmail.mockResolvedValue({
+        id: "1",
+        email: "user@test.com",
+        passwordHash: hashedPw
+      });
 
-    await expect(
-      service.registerUser({
-        name: "X",
-        email: "x@example.com",
-        password: "secret123",
-        role: "staff"
-      })
-    ).rejects.toThrow("Role must be admin or customer");
+      const result = await service.login({
+        email: "user@test.com",
+        password: "correct"
+      });
 
-    expect(getPrismaClient).not.toHaveBeenCalled();
+      expect(result.id).toBe("1");
+    });
+
+    it("throws on user not found", async () => {
+      mockFindByEmail.mockResolvedValue(null);
+
+      await expect(
+        service.login({ email: "nobody@test.com", password: "x" })
+      ).rejects.toThrow("Invalid credentials");
+    });
+
+    it("throws on wrong password", async () => {
+      const hashedPw = await bcrypt.hash("correct", 10);
+      mockFindByEmail.mockResolvedValue({
+        id: "1",
+        email: "user@test.com",
+        passwordHash: hashedPw
+      });
+
+      await expect(
+        service.login({ email: "user@test.com", password: "wrong" })
+      ).rejects.toThrow("Invalid credentials");
+    });
+
+    it("rejects missing email", async () => {
+      await expect(
+        service.login({ password: "x" })
+      ).rejects.toThrow("Email and password are required");
+    });
+
+    it("rejects missing password", async () => {
+      await expect(
+        service.login({ email: "x@y.com" })
+      ).rejects.toThrow("Email and password are required");
+    });
   });
 });

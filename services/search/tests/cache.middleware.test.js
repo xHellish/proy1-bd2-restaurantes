@@ -1,16 +1,24 @@
-const Redis = require("ioredis");
-const { cacheMiddleware } = require("../src/middlewares/cache.middleware");
 const express = require("express");
 const request = require("supertest");
 
+const mockRedisInstance = {
+  get: jest.fn(),
+  setex: jest.fn(),
+  flushdb: jest.fn(),
+  status: "ready"
+};
+
 jest.mock("ioredis", () => {
-  const mockRedis = {
-    get: jest.fn(),
-    setex: jest.fn(),
-    flushdb: jest.fn()
-  };
-  return jest.fn(() => mockRedis);
+  return jest.fn(() => mockRedisInstance);
 });
+
+jest.mock("../src/config/env", () => ({
+  elasticUrl: "http://localhost:9200",
+  redisUrl: "redis://localhost:6379",
+  nodeEnv: "test"
+}));
+
+const { cacheMiddleware } = require("../src/middlewares/cache.middleware");
 
 describe("search cache middleware", () => {
   let app;
@@ -22,6 +30,9 @@ describe("search cache middleware", () => {
   });
 
   it("returns MISS and caches search results on first request", async () => {
+    mockRedisInstance.get.mockResolvedValue(null);
+    mockRedisInstance.setex.mockResolvedValue("OK");
+
     app.use("/search", cacheMiddleware(600));
     app.get("/search/test", (req, res) => {
       res.json([
@@ -29,10 +40,6 @@ describe("search cache middleware", () => {
         { id: "2", name: "Pizza", categoryId: "cat-2" }
       ]);
     });
-
-    const mockRedis = require("ioredis").mock.results[0].value;
-    mockRedis.get.mockResolvedValue(null);
-    mockRedis.setex.mockResolvedValue("OK");
 
     const response = await request(app).get("/search/test");
 
@@ -42,16 +49,15 @@ describe("search cache middleware", () => {
   });
 
   it("returns HIT from cache on subsequent request", async () => {
+    const cached = JSON.stringify([
+      { id: "1", name: "Pasta", categoryId: "cat-1" }
+    ]);
+    mockRedisInstance.get.mockResolvedValue(cached);
+
     app.use("/search", cacheMiddleware(600));
     app.get("/search/test", (req, res) => {
       res.json([{ id: "1", name: "Pasta" }]);
     });
-
-    const cached = JSON.stringify([
-      { id: "1", name: "Pasta", categoryId: "cat-1" }
-    ]);
-    const mockRedis = require("ioredis").mock.results[0].value;
-    mockRedis.get.mockResolvedValue(cached);
 
     const response = await request(app).get("/search/test");
 
@@ -61,9 +67,8 @@ describe("search cache middleware", () => {
   });
 
   it("caches with correct TTL of 10 minutes", async () => {
-    const mockRedis = require("ioredis").mock.results[0].value;
-    mockRedis.get.mockResolvedValue(null);
-    mockRedis.setex.mockResolvedValue("OK");
+    mockRedisInstance.get.mockResolvedValue(null);
+    mockRedisInstance.setex.mockResolvedValue("OK");
 
     app.use("/search/products", cacheMiddleware(600));
     app.get("/search/products", (req, res) => {
@@ -72,7 +77,7 @@ describe("search cache middleware", () => {
 
     await request(app).get("/search/products?q=pizza");
 
-    expect(mockRedis.setex).toHaveBeenCalledWith(
+    expect(mockRedisInstance.setex).toHaveBeenCalledWith(
       expect.stringContaining("cache:search"),
       600,
       expect.any(String)
@@ -80,7 +85,6 @@ describe("search cache middleware", () => {
   });
 
   it("does not cache non-GET requests", async () => {
-    const mockRedis = require("ioredis").mock.results[0].value;
     app.use("/search", cacheMiddleware(600));
     app.post("/search/test", (req, res) => {
       res.json({ created: true });
@@ -88,12 +92,11 @@ describe("search cache middleware", () => {
 
     await request(app).post("/search/test");
 
-    expect(mockRedis.get).not.toHaveBeenCalled();
+    expect(mockRedisInstance.get).not.toHaveBeenCalled();
   });
 
   it("handles cache retrieval errors gracefully", async () => {
-    const mockRedis = require("ioredis").mock.results[0].value;
-    mockRedis.get.mockRejectedValue(new Error("Redis error"));
+    mockRedisInstance.get.mockRejectedValue(new Error("Redis error"));
 
     app.use("/search", cacheMiddleware(600));
     app.get("/search/test", (req, res) => {
@@ -107,9 +110,8 @@ describe("search cache middleware", () => {
   });
 
   it("handles cache storage errors gracefully", async () => {
-    const mockRedis = require("ioredis").mock.results[0].value;
-    mockRedis.get.mockResolvedValue(null);
-    mockRedis.setex.mockRejectedValue(new Error("Cache storage failed"));
+    mockRedisInstance.get.mockResolvedValue(null);
+    mockRedisInstance.setex.mockResolvedValue("OK");
 
     app.use("/search", cacheMiddleware(600));
     app.get("/search/test", (req, res) => {
