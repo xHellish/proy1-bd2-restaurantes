@@ -77,7 +77,7 @@ function invalidateCacheMiddleware() {
             redis.eval(
               `return redis.call('del', unpack(redis.call('keys', '${pattern}')))`,
               0
-            );
+            ).catch(err => console.error("Cache invalidation error:", err.message));
           });
         } catch (error) {
           console.error("Cache invalidation error:", error.message);
