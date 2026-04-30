@@ -12,6 +12,8 @@
     "dev:search": "npm run dev --workspace services/search",
     "test": "npm run test --workspace services/api && npm run test --workspace services/search",
     "lint": "npm run lint --workspace services/api && npm run lint --workspace services/search",
+    "seed:postgres": "DB_ENGINE=postgres node infra/scripts/seed-data.js",
+    "seed:mongodb": "DB_ENGINE=mongodb node infra/scripts/seed-data.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down"
   },

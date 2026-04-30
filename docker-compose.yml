@@ -19,43 +19,134 @@ services:
       retries: 5
       start_period: 30s
 
-  # ===== MongoDB Replica Set (3 nodos) =====
-  mongo1:
+  # ===== MongoDB Config Servers (Replica Set: configrs0) =====
+  config-server-1:
     image: mongo:8
-    container_name: py01_mongo1
+    container_name: py01_configsvr1
     restart: unless-stopped
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--configsvr", "--replSet", "configrs0", "--port", "27019", "--bind_ip_all"]
     volumes:
-      - mongo1_data:/data/db
+      - configsvr1_data:/data/db
 
-  mongo2:
+  config-server-2:
     image: mongo:8
-    container_name: py01_mongo2
+    container_name: py01_configsvr2
     restart: unless-stopped
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--configsvr", "--replSet", "configrs0", "--port", "27020", "--bind_ip_all"]
     volumes:
-      - mongo2_data:/data/db
+      - configsvr2_data:/data/db
 
-  mongo3:
+  config-server-3:
     image: mongo:8
-    container_name: py01_mongo3
+    container_name: py01_configsvr3
     restart: unless-stopped
-    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    command: ["mongod", "--configsvr", "--replSet", "configrs0", "--port", "27021", "--bind_ip_all"]
     volumes:
-      - mongo3_data:/data/db
+      - configsvr3_data:/data/db
 
-  # Inicialización del Replica Set (corre una vez y se detiene — es normal)
-  mongo-setup:
+  # Init config server replica set
+  configsvr-setup:
     image: mongo:8
-    container_name: py01_mongo_setup
+    container_name: py01_configsvr_setup
     restart: "no"
     depends_on:
-      - mongo1
-      - mongo2
-      - mongo3
+      - config-server-1
+      - config-server-2
+      - config-server-3
     volumes:
-      - ./infra/mongo/init-replica.sh:/scripts/init-replica.sh:ro
-    entrypoint: ["bash", "/scripts/init-replica.sh"]
+      - ./infra/mongo/init-configsvr.sh:/scripts/init-configsvr.sh:ro
+    entrypoint: ["bash", "/scripts/init-configsvr.sh"]
+
+  # ===== MongoDB Shard 1 (Replica Set: shard1rs0) =====
+  shard1-node1:
+    image: mongo:8
+    container_name: py01_shard1_node1
+    restart: unless-stopped
+    command: ["mongod", "--shardsvr", "--replSet", "shard1rs0", "--port", "27017", "--bind_ip_all"]
+    volumes:
+      - shard1_node1_data:/data/db
+
+  shard1-node2:
+    image: mongo:8
+    container_name: py01_shard1_node2
+    restart: unless-stopped
+    command: ["mongod", "--shardsvr", "--replSet", "shard1rs0", "--port", "27018", "--bind_ip_all"]
+    volumes:
+      - shard1_node2_data:/data/db
+
+  shard1-node3:
+    image: mongo:8
+    container_name: py01_shard1_node3
+    restart: unless-stopped
+    command: ["mongod", "--shardsvr", "--replSet", "shard1rs0", "--port", "27022", "--bind_ip_all"]
+    volumes:
+      - shard1_node3_data:/data/db
+
+  # ===== MongoDB Shard 2 (Replica Set: shard2rs0) =====
+  shard2-node1:
+    image: mongo:8
+    container_name: py01_shard2_node1
+    restart: unless-stopped
+    command: ["mongod", "--shardsvr", "--replSet", "shard2rs0", "--port", "27023", "--bind_ip_all"]
+    volumes:
+      - shard2_node1_data:/data/db
+
+  shard2-node2:
+    image: mongo:8
+    container_name: py01_shard2_node2
+    restart: unless-stopped
+    command: ["mongod", "--shardsvr", "--replSet", "shard2rs0", "--port", "27024", "--bind_ip_all"]
+    volumes:
+      - shard2_node2_data:/data/db
+
+  shard2-node3:
+    image: mongo:8
+    container_name: py01_shard2_node3
+    restart: unless-stopped
+    command: ["mongod", "--shardsvr", "--replSet", "shard2rs0", "--port", "27025", "--bind_ip_all"]
+    volumes:
+      - shard2_node3_data:/data/db
+
+  # Init shard replica sets
+  shards-setup:
+    image: mongo:8
+    container_name: py01_shards_setup
+    restart: "no"
+    depends_on:
+      - shard1-node1
+      - shard1-node2
+      - shard1-node3
+      - shard2-node1
+      - shard2-node2
+      - shard2-node3
+    volumes:
+      - ./infra/mongo/init-shards.sh:/scripts/init-shards.sh:ro
+    entrypoint: ["bash", "/scripts/init-shards.sh"]
+
+  # ===== Mongos Router =====
+  mongos:
+    image: mongo:8
+    container_name: py01_mongos
+    restart: unless-stopped
+    command: ["mongos", "--configdb", "configrs0/config-server-1:27019,config-server-2:27020,config-server-3:27021", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    depends_on:
+      configsvr-setup:
+        condition: service_completed_successfully
+      shards-setup:
+        condition: service_completed_successfully
+
+  # Configure sharding (add shards + shard collections)
+  sharding-setup:
+    image: mongo:8
+    container_name: py01_sharding_setup
+    restart: "no"
+    depends_on:
+      - mongos
+    volumes:
+      - ./infra/mongo/init-sharding.sh:/scripts/init-sharding.sh:ro
+    entrypoint: ["bash", "/scripts/init-sharding.sh"]
 
   # ===== Redis =====
   redis:
@@ -104,12 +195,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mongo-setup:
+      sharding-setup:
         condition: service_completed_successfully
     ports:
       - "3000"
     environment:
       - NODE_ENV=production
+      - DB_ENGINE=${DB_ENGINE:-postgres}
 
   # ===== Search Service =====
   search:
@@ -128,6 +220,8 @@ services:
       - "4000"
     environment:
       - NODE_ENV=production
+      - DB_ENGINE=${DB_ENGINE:-postgres}
+      - MONGO_URI=${MONGO_URI}
 
   # ===== Nginx Gateway =====
   nginx:
@@ -144,7 +238,13 @@ services:
 
 volumes:
   postgres_data:
-  mongo1_data:
-  mongo2_data:
-  mongo3_data:
+  configsvr1_data:
+  configsvr2_data:
+  configsvr3_data:
+  shard1_node1_data:
+  shard1_node2_data:
+  shard1_node3_data:
+  shard2_node1_data:
+  shard2_node2_data:
+  shard2_node3_data:
   es_data:

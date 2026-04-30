@@ -72,6 +72,7 @@ services:
       REDIS_URL: redis://redis:6379
       ELASTIC_URL: http://elasticsearch:9200
       API_PORT: 3001
+      DB_ENGINE: ${DB_ENGINE:-postgres}
     ports:
       - "3001:3001"
     depends_on:
@@ -98,6 +99,7 @@ services:
       ELASTIC_URL: http://elasticsearch:9200
       REDIS_URL: redis://redis:6379
       SEARCH_PORT: 3002
+      DB_ENGINE: ${DB_ENGINE:-postgres}
     ports:
       - "3002:3002"
     depends_on:

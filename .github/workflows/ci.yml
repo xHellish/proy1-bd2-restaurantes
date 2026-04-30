@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   NODE_VERSION: "22"
-  COVERAGE_THRESHOLD: 50
+  COVERAGE_THRESHOLD: 90
 
 jobs:
   # ===== STAGE 1: TEST & QUALITY =====
