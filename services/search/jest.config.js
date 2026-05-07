@@ -1,6 +1,7 @@
 module.exports = {
   testEnvironment: "node",
   testMatch: ["**/tests/**/*.test.js"],
+  coverageReporters: ["json-summary", "lcov", "clover", "text"],
   collectCoverageFrom: [
     "src/**/*.js",
     "!src/**/*config*",
