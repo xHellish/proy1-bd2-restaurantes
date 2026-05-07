@@ -73,11 +73,19 @@ function invalidateCacheMiddleware() {
             "cache:/search/products*"
           ];
 
-          patterns.forEach(pattern => {
-            redis.eval(
-              `return redis.call('del', unpack(redis.call('keys', '${pattern}')))`,
-              0
-            ).catch(err => console.error("Cache invalidation error:", err.message));
+          patterns.forEach(async (pattern) => {
+            try {
+              let cursor = "0";
+              do {
+                const [nextCursor, keys] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 100);
+                cursor = nextCursor;
+                if (keys.length > 0) {
+                  await redis.unlink(...keys);
+                }
+              } while (cursor !== "0");
+            } catch (err) {
+              console.error("Cache invalidation error:", err.message);
+            }
           });
         } catch (error) {
           console.error("Cache invalidation error:", error.message);

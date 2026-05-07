@@ -1,329 +1,485 @@
-# PY01 Restaurantes - Professional Microservices Architecture
+# 🍽️ PY01 Restaurantes — Microservicios con Persistencia Políglota
 
-**Repo**: https://github.com/xHellish/proy1-bd2-restaurantes  
-**Swagger UI**: http://localhost/api/docs (después de `docker-compose up`)
+**Repo**: https://github.com/xHellish/proy1-bd2-restaurantes
+**Swagger UI**: http://localhost/api/docs (después de desplegar)
 
-## Descripción General
+> Sistema de restaurantes con arquitectura de microservicios, persistencia políglota (PostgreSQL ↔ MongoDB), MongoDB Sharded Cluster, Elasticsearch, Redis y escalabilidad horizontal con Kubernetes.
 
-Sistema de restaurantes con arquitectura de microservicios profesional que implementa:
+---
 
-- **Persistencia Políglota**: Interoperabilidad entre PostgreSQL y MongoDB sin cambios en servicios
-- **MongoDB Sharded Cluster**: 2 shards (cada uno con 3 réplicas) + 3 config servers + Mongos router
-- **Búsqueda Textual Avanzada**: ElasticSearch con multi-match y filtrado por categorías
-- **Caché Distribuido**: Redis con TTL y cache-aside pattern
-- **Balanceo de Carga**: Nginx reverse proxy con load balancing automático
-- **Escalabilidad Horizontal**: Docker Compose permite escalar servicios dinámicamente
-- **CI/CD**: GitHub Actions + Docker + Jest (≥90% cobertura)
+## 📋 Índice
 
-## Arquitectura
+1. [Requisitos](#1-requisitos)
+2. [Despliegue Completo](#2-despliegue-completo)
+3. [Carga de Datos Ficticios (Seed)](#3-carga-de-datos-ficticios-seed)
+4. [Cambiar Motor de Base de Datos](#4-cambiar-motor-de-base-de-datos)
+5. [Escalabilidad Horizontal (Kubernetes)](#5-escalabilidad-horizontal-kubernetes)
+6. [Modelos de Datos](#6-modelos-de-datos)
+7. [CI/CD — GitHub Actions](#7-cicd--github-actions)
+8. [Pruebas](#8-pruebas)
+9. [Endpoints Principales](#9-endpoints-principales)
+10. [Comandos Útiles](#10-comandos-útiles)
 
-### Diagrama de Componentes
+---
 
-```
-┌────────────────────────────────────────────────────────────┐
-│              Nginx (Reverse Proxy & LB)                    │
-│        /api/** → API | /search/** → Search                │
-└─────┬────────────────────────────────────┬──────────────────┘
-      │                                    │
-  ┌───▼──────────────┐         ┌──────────▼────────┐
-  │  API Service     │         │ Search Service    │
-  │  (port 3000)     │         │ (port 4000)       │
-  │ - Controllers    │         │ - Endpoints       │
-  │ - Repositories   │         │ - Reindex Jobs    │
-  │ - Services       │         │ - Cache Mw        │
-  └──┬────────┬──────┘         └────┬──────────┬───┘
-     │        │                     │          │
-     │   ┌────▼────────┐           │       ┌───▼──────┐
-     │   │  PostgreSQL │           │       │ Redis    │
-     │   │  (o MongoDB │           │       │ (Cache)  │
-     │   │   según     │           │       │ 5/10min  │
-     │   │   config)   │           │       │ TTL      │
-     │   └─────────────┘           │       └──────────┘
-     │                             │
-     └───────────┬──────────────────┴──────┐
-                 │                         │
-  ┌──────────────▼──────────────┐ ┌────────▼──────┐
-  │  MongoDB Sharded Cluster   │ │ Elasticsearch │
-  │  ┌─────────┐ ┌──────────┐ │ │ (Products     │
-  │  │ Shard 1 │ │ Shard 2  │ │ │  Index)       │
-  │  │ (3 rep) │ │ (3 rep)  │ │ │               │
-  │  └────┬────┘ └────┬─────┘ │ └───────────────┘
-  │       └────┬───────┘       │
-  │       ┌────▼────┐          │
-  │       │ Mongos  │          │
-  │       │ Router  │          │
-  │       └─────────┘          │
-  │  ┌────────────────┐        │
-  │  │ 3 Config Svrs  │        │
-  │  └────────────────┘        │
-  └────────────────────────────┘
-```
+## 1. Requisitos
 
-### Distribución de Datos
+| Requisito | Mínimo |
+|-----------|--------|
+| Docker Desktop | 20.10+ (con Docker Compose v2) |
+| RAM disponible | **8 GB** (el cluster sharded usa ~4 GB) |
+| Node.js | 22+ (solo para desarrollo local sin Docker) |
+| Kubernetes | Docker Desktop con K8s habilitado (solo para sección 5) |
 
-| Componente    | Datos                                | Configuración                          |
-|---------------|--------------------------------------|----------------------------------------|
-| PostgreSQL    | Todos (modo postgres)                | Single instance                        |
-| MongoDB       | Todos (modo mongodb)                 | Sharded: 2 shards × 3 réplicas        |
-| Elasticsearch | Índice textual de productos          | Single-node (desarrollo)               |
-| Redis         | Respuestas cacheadas de API/Search   | TTL: 5 min (productos), 10 min (menús) |
+---
 
-### MongoDB Sharding
+## 2. Despliegue Completo
 
-Las siguientes colecciones están sharded con hash-based partitioning:
-
-| Colección      | Shard Key        | Distribución                |
-|----------------|------------------|-----------------------------|
-| `products`     | `productId` hash | Distribución uniforme       |
-| `reservations` | `userId` hash    | Aislamiento por tenant      |
-| `menus`        | `restaurantId`   | Agrupación por restaurante  |
-
-## Requisitos
-
-- Docker & Docker Compose 20.10+
-- Node.js 22+ (solo para desarrollo local sin Docker)
-- **8GB RAM mínimo** (el cluster sharded usa ~4GB)
-
-## Instalación y Ejecución
-
-### Opción 1: Stack Completo con PostgreSQL (Por defecto)
+### 2.1 — Clonar y levantar
 
 ```bash
-# 1. Clonar repositorio
 git clone https://github.com/xHellish/proy1-bd2-restaurantes
-cd PY01_Restaurantes
+cd proy1-bd2-restaurantes
 
-# 2. Levantar stack completo
-docker-compose up --build
-
-# 3. Esperar a que todos los servicios estén listos (~2-3 minutos)
-# Los logs mostrarán "✓ Sharding configured on all collections"
-
-# 4. Verificar salud
-curl http://localhost/health               # Nginx gateway
-curl http://localhost/api/docs             # Swagger UI
-
-# 5. (Opcional) Cargar datos de prueba
-docker-compose exec api node infra/scripts/seed-data.js
+# Levantar todo el stack (20 contenedores)
+docker compose up --build -d
 ```
 
-### Opción 2: Cambiar a MongoDB
+> ⏱️ **Primera vez**: ~2-3 minutos (descarga de imágenes + build).
+> El stack incluye: PostgreSQL, MongoDB Sharded Cluster (9 nodos + Mongos + 3 init containers), Redis, Elasticsearch, 2 microservicios y Nginx.
+
+### 2.2 — Verificar que todo esté corriendo
 
 ```bash
-# 1. En .env cambiar:
-DB_ENGINE=mongodb
-
-# 2. Recrear stack
-docker-compose down -v
-docker-compose up --build
-
-# 3. Cargar datos de prueba en MongoDB
-docker-compose exec api sh -c "DB_ENGINE=mongodb node infra/scripts/seed-data.js"
+docker compose ps
 ```
 
-### Cambiar entre Motores de Base de Datos
+- Servicios principales → estado `Up (healthy)`
+- Init containers (`configsvr-setup`, `shards-setup`, `sharding-setup`) → `Exited (0)` ✅ (es normal, son one-shot)
 
-El sistema usa el **patrón Repository** para abstraer la capa de persistencia. El cambio entre PostgreSQL y MongoDB se realiza **exclusivamente** modificando la variable `DB_ENGINE` en el archivo `.env`:
+### 2.3 — Verificar acceso
 
 ```bash
-# PostgreSQL (default)
-DB_ENGINE=postgres
+# Health check general
+curl http://localhost/api/health
 
-# MongoDB (sharded cluster)
-DB_ENGINE=mongodb
+# Swagger UI (abrir en navegador)
+http://localhost/api/docs
 ```
 
-**Importante**: Después de cambiar el motor:
-1. Ejecutar `docker-compose down -v` para limpiar volúmenes
-2. Ejecutar `docker-compose up --build` para reconstruir
-3. Cargar seed data con el motor apropiado
+Respuesta esperada del health check:
+```json
+{
+  "status": "ok",
+  "services": {
+    "postgres": { "status": "up" },
+    "mongo": { "status": "up" },
+    "redis": { "status": "up" }
+  }
+}
+```
 
-No se requieren cambios en código fuente. La lógica de negocio en `services/` es idéntica para ambos motores.
+---
 
-## Datos de Prueba (Seed Data)
+## 3. Carga de Datos Ficticios (Seed)
 
-El script `infra/scripts/seed-data.js` genera datos realistas diseñados con asistencia de LLMs:
-
-- **8 categorías** de comida (Entradas, Platos Fuertes, Pastas, Mariscos, etc.)
-- **5 restaurantes** guatemaltecos con direcciones y descripciones reales
-- **32 productos** con precios, descripciones detalladas y categorías
-- **5 usuarios** (1 admin + 4 customers)
-- **5 menús** con productos asignados
-- **10 reservaciones** con estados variados
-
-Algunos productos tienen descripción `null` o vacía para probar la regla de normalización de ElasticSearch (`"Producto sin descripción"`).
+Con la infraestructura levantada:
 
 ```bash
-# Con PostgreSQL
-DB_ENGINE=postgres node infra/scripts/seed-data.js
-
-# Con MongoDB
-DB_ENGINE=mongodb MONGO_URI=mongodb://mongos:27017/restaurantes node infra/scripts/seed-data.js
+docker compose exec -w /app/services/api api node ../../infra/scripts/seed-data.js
 ```
 
-## Escalabilidad - Horizontal Scaling
+> **¿Por qué `-w /app/services/api`?** El script reutiliza `db.js` del API, que necesita resolver `@prisma/adapter-pg` instalado en el workspace del servicio.
 
-### Escalar a 3 instancias de API
+### Datos que se insertan
+
+| Entidad | Cantidad | Detalle |
+|---------|----------|---------|
+| Categorías | 8 | Entradas, Platos Fuertes, Pastas, Mariscos, etc. |
+| Restaurantes | 5 | Establecimientos guatemaltecos ficticios |
+| Productos | 32 | Platos y bebidas con precios y descripciones |
+| Usuarios | 5 | 1 admin + 4 customers |
+| Menús | 5 | Un menú por restaurante |
+| Reservaciones | 10 | Diferentes estados (pending, confirmed, etc.) |
+
+### Verificación rápida
 
 ```bash
-docker-compose up -d --scale api=3
-
-# Nginx automáticamente balancea entre ellas
-for i in {1..10}; do curl http://localhost/api/health; done
+curl http://localhost/api/restaurants   # Listar restaurantes
+curl http://localhost/api/products      # Listar productos
+curl http://localhost/api/categories    # Listar categorías
 ```
 
-### Escalar Search
+---
+
+## 4. Cambiar Motor de Base de Datos
+
+El sistema usa el **Patrón Repository** para abstraer la persistencia. El cambio es **solo una variable de entorno**:
 
 ```bash
-docker-compose up -d --scale search=2
+# 1. Editar .env
+DB_ENGINE=mongodb    # Opciones: postgres (default) | mongodb
+
+# 2. Recrear stack desde cero
+docker compose down -v
+docker compose up --build -d
+
+# 3. Cargar seed en MongoDB
+docker compose exec -w /app/services/api api node ../../infra/scripts/seed-data.js
 ```
 
-## Endpoints Principales
+> ⚠️ El flag `-v` elimina todos los volúmenes (datos de PostgreSQL, MongoDB, Elasticsearch). Es necesario al cambiar de motor.
 
-### 🔐 API (Requiere Autenticación)
+---
 
-```
-POST   /api/auth/register         # Registrar usuario
-POST   /api/auth/login             # Login → JWT token
+## 5. Escalabilidad Horizontal (Kubernetes)
 
-GET    /api/products              # Listar (cached 5 min)
-POST   /api/products (admin)      # Crear → sincroniza a ES
-PUT    /api/products/:id (admin)  # Actualizar → sincroniza a ES
-DELETE /api/products/:id (admin)  # Eliminar → sincroniza a ES
+### 5.1 — Prerequisitos
 
-GET    /api/menus                 # Listar (cached 10 min)
-GET    /api/categories            # Listar (cached 10 min)
-GET    /api/reservations          # Mis reservaciones
-```
+- Docker Desktop → Settings → Kubernetes → ✅ **Enable Kubernetes** → Apply & Restart
 
-### 🔍 Search (Público)
-
-```
-GET /search/products?q=pizza              # Búsqueda textual (cached)
-GET /search/products/category/:categoryId # Por categoría (cached)
-POST /search/reindex (admin)              # Reindexar base de datos
-```
-
-## CI/CD Pipeline
-
-El pipeline de GitHub Actions ejecuta automáticamente:
-
-1. **Test & Quality** (en cada push/PR a main):
-   - Lint con ESLint
-   - Tests unitarios con Jest
-   - Verificación de cobertura ≥ 90%
-
-2. **Build & Push** (solo en push a main):
-   - Construye imágenes Docker para `api` y `search`
-   - Publica en GitHub Container Registry (ghcr.io)
-
-3. **Notificaciones** del estado del pipeline
-
-## Pruebas
+### 5.2 — Desplegar
 
 ```bash
-# Todos los tests
+# Aplicar manifiestos (ejecutar 2 veces si hay error de namespace)
+kubectl apply -f k8s/
+kubectl apply -f k8s/   # Segunda vez para resolver dependencia del namespace
+```
+
+### 5.3 — Verificar pods
+
+```bash
+kubectl get pods -n restaurantes
+```
+
+Resultado esperado: **3 pods API** + **2 pods Search**, todos `Running`.
+
+### 5.4 — Escalar
+
+```bash
+# Escalar API de 3 a 6 réplicas
+kubectl scale deployment api-deployment --replicas=6 -n restaurantes
+
+# Observar en tiempo real
+kubectl get pods -n restaurantes -w
+
+# Escalar hacia abajo
+kubectl scale deployment api-deployment --replicas=2 -n restaurantes
+```
+
+### 5.5 — Limpieza
+
+```bash
+kubectl delete -f k8s/
+```
+
+### Manifiestos incluidos (`k8s/`)
+
+| Archivo | Recurso | Descripción |
+|---------|---------|-------------|
+| `namespace.yaml` | Namespace | `restaurantes` — aislamiento de recursos |
+| `configmap.yaml` | ConfigMap | Variables compartidas (`DB_ENGINE`, puertos) |
+| `api-deployment.yaml` | Deployment | API con **3 réplicas**, 256Mi-512Mi RAM, 200m-500m CPU |
+| `api-service.yaml` | Service (ClusterIP) | Balanceador interno del API |
+| `search-deployment.yaml` | Deployment | Search con **2 réplicas** |
+| `search-service.yaml` | Service (ClusterIP) | Balanceador interno de Search |
+| `ingress.yaml` | Ingress | Enrutamiento externo: `/api/*` → API, `/search/*` → Search |
+
+---
+
+## 6. Modelos de Datos
+
+### 6.1 — Esquema Relacional (PostgreSQL — Prisma)
+
+```mermaid
+erDiagram
+    User ||--o{ Reservation : "realiza"
+    Restaurant ||--o{ Menu : "tiene"
+    Restaurant ||--o{ Reservation : "recibe"
+    Category ||--o{ Product : "clasifica"
+    Menu ||--o{ MenuProduct : "contiene"
+    Product ||--o{ MenuProduct : "aparece en"
+
+    User {
+        string id PK "cuid()"
+        string name
+        string email UK
+        string password_hash
+        enum role "admin | customer"
+        datetime created_at
+    }
+
+    Restaurant {
+        string id PK "cuid()"
+        string name
+        string address
+        string phone
+        string description
+        float rating "default: 0"
+        datetime created_at
+    }
+
+    Category {
+        string id PK "cuid()"
+        string name UK
+        string description
+        string icon
+    }
+
+    Product {
+        string id PK "cuid()"
+        string name
+        string description
+        decimal price "Decimal(10,2)"
+        string image_url
+        boolean available "default: true"
+        string category_id FK
+        datetime created_at
+    }
+
+    Menu {
+        string id PK "cuid()"
+        string name
+        string description
+        boolean active "default: true"
+        string restaurant_id FK
+        datetime created_at
+    }
+
+    MenuProduct {
+        string id PK "cuid()"
+        string menu_id FK
+        string product_id FK
+        int display_order "default: 0"
+    }
+
+    Reservation {
+        string id PK "cuid()"
+        string user_id FK
+        string restaurant_id FK
+        datetime reservation_date
+        int party_size
+        enum status "pending | confirmed | cancelled | completed"
+        string special_requests "nullable"
+        datetime created_at
+    }
+```
+
+### 6.2 — MongoDB Sharding
+
+Cuando `DB_ENGINE=mongodb`, las colecciones se distribuyen mediante **hashed sharding** en 2 shards (cada uno con 3 réplicas):
+
+| Colección | Shard Key | Estrategia |
+|-----------|-----------|------------|
+| `products` | `productId` | Hashed — distribución uniforme |
+| `reservations` | `userId` | Hashed — aislamiento por tenant |
+| `menus` | `restaurantId` | Hashed — agrupación por restaurante |
+
+**Infraestructura MongoDB**: 3 Config Servers (`configrs0`) + Shard 1 (`shard1rs0`, 3 nodos) + Shard 2 (`shard2rs0`, 3 nodos) + Mongos Router.
+
+### 6.3 — Índice Elasticsearch
+
+Elasticsearch indexa los **productos** para búsqueda full-text con multi-match sobre `name` y `description`. Los productos sin descripción se normalizan a `"Producto sin descripción"`.
+
+### 6.4 — Redis Cache
+
+| Recurso | TTL |
+|---------|-----|
+| Productos (`/api/products`) | 5 min |
+| Menús y Categorías (`/api/menus`, `/api/categories`) | 10 min |
+| Resultados de búsqueda (`/search/*`) | 10 min |
+
+Política de evicción: `allkeys-lru`, límite 256MB.
+
+---
+
+## 7. CI/CD — GitHub Actions
+
+### Workflows
+
+| Archivo | Trigger | Descripción |
+|---------|---------|-------------|
+| `ci.yml` | Push/PR a `main` | Pipeline principal: test → build → publish |
+| `docker-publish.yml` | Manual o semanal (dom 2AM UTC) | Build y publish de imágenes |
+| `pre-commit.yml` | PR a `main`/`develop` | Lint, validación de versiones pinned, check de `console.log` |
+
+### Pipeline Principal (`ci.yml`)
+
+```
+┌─────────────────────────┐     ┌──────────────────────────┐     ┌────────────┐
+│  Stage 1: Test & Quality│────▶│  Stage 2: Build & Push   │────▶│  Notify    │
+│  (push + PR a main)     │     │  (solo push a main)      │     │            │
+├─────────────────────────┤     ├──────────────────────────┤     └────────────┘
+│ • npm ci (root + wksp)  │     │ • Docker Buildx          │
+│ • ESLint                │     │ • Login a ghcr.io        │
+│ • Jest API + coverage   │     │ • Build & push:          │
+│ • Jest Search + coverage│     │   - api image            │
+│ • Cobertura ≥ 90%       │     │   - search image         │
+└─────────────────────────┘     └──────────────────────────┘
+```
+
+### ¿Qué pasa después de que los tests pasan?
+
+1. **Solo en push a `main`** (no en PRs): se ejecuta el Stage 2.
+2. Se construyen **2 imágenes Docker** en paralelo (matrix: `[api, search]`).
+3. Se publican en **GitHub Container Registry** (`ghcr.io`):
+
+| Package | Imagen |
+|---------|--------|
+| API Service | `ghcr.io/xhellish/proy1-bd2-restaurantes-api` |
+| Search Service | `ghcr.io/xhellish/proy1-bd2-restaurantes-search` |
+
+4. Tags generados automáticamente por cada push:
+   - `latest` (rama default)
+   - `main` (nombre de rama)
+   - `main-<sha>` (commit específico)
+
+5. Se usa **cache de registro** (`buildcache`) para acelerar builds futuros.
+
+### Servicios levantados en CI
+
+El job de test levanta contenedores de servicio en GitHub Actions:
+
+| Servicio | Imagen | Puerto |
+|----------|--------|--------|
+| PostgreSQL | `postgres:16-alpine` | 5432 |
+| MongoDB | `mongo:8` | 27017 |
+| Redis | `redis:7-alpine` | 6379 |
+| Elasticsearch | `elasticsearch:8.15.5` | 9200 |
+
+---
+
+## 8. Pruebas
+
+```bash
+# Todos los tests (API + Search)
 npm test
 
 # Con cobertura
 npm test -- --coverage
 
-# Solo API
+# Solo un workspace
 npm --workspace services/api test
-
-# Solo Search
 npm --workspace services/search test
 ```
 
-### Cobertura
-- **Pruebas unitarias**: Services, middlewares, routes, indexers
-- **Threshold**: 90% líneas, 90% funciones, 90% statements, 80% branches
-- **22+ archivos de test** cubriendo ambos servicios
+**Threshold de cobertura**: 90% líneas, 90% funciones, 90% statements, 80% branches.
 
-## Validaciones Técnicas
+---
 
-### MongoDB Sharding
+## 9. Endpoints Principales
+
+### API (`/api/*`) — requiere autenticación para escritura
+
+| Método | Ruta | Auth |
+|--------|------|------|
+| `POST` | `/api/auth/register` | ❌ |
+| `POST` | `/api/auth/login` | ❌ |
+| `GET` | `/api/products` | ❌ (cached 5min) |
+| `POST/PUT/DELETE` | `/api/products/:id` | ✅ Admin |
+| `GET` | `/api/menus` | ❌ (cached 10min) |
+| `GET` | `/api/categories` | ❌ (cached 10min) |
+| `GET/POST` | `/api/reservations` | ✅ |
+| `GET/POST` | `/api/restaurants` | POST: ✅ Admin |
+
+### Search (`/search/*`) — público
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `GET` | `/search/products?q=pizza` | Búsqueda full-text |
+| `GET` | `/search/products/category/:id` | Por categoría |
+| `POST` | `/search/reindex` | Reindexar (admin) |
+
+---
+
+## 10. Comandos Útiles
+
+### Docker Compose
+
 ```bash
-# Conectar al router mongos
-docker exec -it py01_mongos mongosh
+# Levantar todo
+docker compose up --build -d
 
-# En mongosh:
-sh.status()
-# Debe mostrar: 2 shards, 3 colecciones sharded (products, reservations, menus)
+# Ver logs en tiempo real
+docker compose logs -f api search
+
+# Escalar a 3 instancias del API
+docker compose up -d --scale api=3
+
+# Apagar (conservar datos)
+docker compose down
+
+# Apagar + eliminar volúmenes (reset total)
+docker compose down -v
+
+# Rebuild solo un servicio
+docker compose build api && docker compose up -d
 ```
 
-### Redis Cache
+### Verificación de Sharding
+
+```bash
+docker exec -it py01_mongos mongosh
+# En mongosh:
+sh.status()
+# Debe mostrar: 2 shards, 3 colecciones sharded
+```
+
+### Verificación de Redis
+
 ```bash
 docker exec -it py01_redis redis-cli
-
-# Ver keys
 KEYS "cache:*"
-
-# Ver TTL de una key
 TTL "cache:/api/products"
 ```
 
-### Elasticsearch
-```bash
-# Ver índices
-curl http://localhost:9200/_cat/indices
+### Verificación de Elasticsearch
 
-# Buscar productos
+```bash
+curl http://localhost:9200/_cat/indices
 curl "http://localhost/search/products?q=pizza"
 ```
 
-## Estructura de Carpetas
+---
+
+## 📁 Estructura de Carpetas
 
 ```
 PY01_Restaurantes/
 ├── services/
-│   ├── api/                           # Microservicio principal
+│   ├── api/                        # Microservicio CRUD + Auth
 │   │   ├── src/
-│   │   │   ├── routes/                # Controllers HTTP
-│   │   │   ├── services/              # Lógica de negocio
-│   │   │   ├── repositories/          # Repository pattern
-│   │   │   │   ├── interfaces/        # Contratos abstractos
-│   │   │   │   ├── postgres/          # Implementación Prisma
-│   │   │   │   └── mongodb/           # Implementación Mongoose
-│   │   │   ├── indexers/              # Elasticsearch sync
-│   │   │   ├── middlewares/           # Auth, cache
-│   │   │   └── config/                # DB, env, ES
-│   │   ├── tests/                     # Jest tests (22+ archivos)
-│   │   ├── prisma/migrations/         # SQL migrations
+│   │   │   ├── routes/             # Controllers REST
+│   │   │   ├── services/           # Lógica de negocio
+│   │   │   ├── repositories/       # Patrón Repository
+│   │   │   │   ├── interfaces/     # Contratos
+│   │   │   │   ├── postgres/       # Prisma 7
+│   │   │   │   └── mongodb/        # Mongoose 9
+│   │   │   ├── indexers/           # Sync a Elasticsearch
+│   │   │   └── middlewares/        # Auth, cache, rate-limit
+│   │   ├── prisma/migrations/      # Migraciones SQL
+│   │   ├── tests/                  # Jest (22+ archivos)
 │   │   └── Dockerfile
-│   │
-│   └── search/                        # Microservicio de búsqueda
+│   └── search/                     # Microservicio de búsqueda
 │       ├── src/
-│       │   ├── routes/                # Search endpoints
-│       │   ├── indexers/              # Reindex jobs (PG + Mongo)
-│       │   ├── middlewares/           # Cache
-│       │   └── config/
 │       ├── tests/
 │       └── Dockerfile
-│
 ├── infra/
-│   ├── nginx/nginx.conf               # Reverse proxy + LB
-│   ├── mongo/
-│   │   ├── init-configsvr.sh          # Config server replica set
-│   │   ├── init-shards.sh             # Shard replica sets (2 shards)
-│   │   ├── init-sharding.sh           # Mongos: add shards + shard collections
-│   │   └── init-replica.sh            # Simple replica set (legacy)
-│   └── scripts/
-│       └── seed-data.js               # Datos de prueba (LLM-generated)
-│
-├── .github/workflows/
-│   ├── ci.yml                         # Test + Build + Publish
-│   ├── docker-publish.yml             # Manual/scheduled publish
-│   └── pre-commit.yml                 # Pre-commit checks
-│
-├── docs/                              # Documentación técnica
-├── docker-compose.yml                 # Stack completo con sharding
-├── docker-compose.test.yml            # Stack para tests
-├── ARCHITECTURE.md                    # Documentación C4 + data flows
-├── .env                               # Configuración
-└── README.md
+│   ├── nginx/nginx.conf            # Reverse proxy + LB
+│   ├── mongo/                      # Scripts init sharding
+│   └── scripts/seed-data.js        # Datos ficticios
+├── k8s/                            # Manifiestos Kubernetes
+├── .github/workflows/              # CI/CD pipelines
+│   ├── ci.yml                      # Test + Build + Publish
+│   ├── docker-publish.yml          # Publish manual/scheduled
+│   └── pre-commit.yml              # Quality checks
+├── docs/                           # Documentación técnica extendida
+├── docker-compose.yml              # Stack completo (20 servicios)
+├── docker-compose.test.yml         # Stack para tests
+├── .env                            # Variables de entorno
+└── ARCHITECTURE.md                 # Documentación C4 + data flows
 ```
 
-## Licencia
+---
 
-MIT
+> **Bases de Datos 2 — Universidad del Valle de Guatemala**

@@ -9,6 +9,11 @@ actual_status.md
 .github/LOCAL_TESTING.md
 .github/PIPELINE.md
 ARCHITECTURE.md
+auditoria_y_plan.md
+docs/GUIA_DESPLIEGUE.md
+
+# assets
+assets/
 
 # Node
 node_modules/
