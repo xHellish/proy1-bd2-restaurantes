@@ -5,7 +5,8 @@ const request = require("supertest");
 const mockRedisInstance = {
   get: jest.fn(),
   setex: jest.fn(),
-  eval: jest.fn(),
+  scan: jest.fn(),
+  unlink: jest.fn(),
   flushdb: jest.fn(),
   status: "ready"
 };
@@ -91,12 +92,13 @@ describe("cache middleware", () => {
         res.json({ created: true });
       });
 
-      mockRedisInstance.eval.mockResolvedValue(0);
+      mockRedisInstance.scan.mockResolvedValue(["0", ["cache:/api/products/123"]]);
+      mockRedisInstance.unlink.mockResolvedValue(1);
 
       const response = await request(app).post("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedisInstance.eval).toHaveBeenCalled();
+      expect(mockRedisInstance.scan).toHaveBeenCalled();
     });
 
     it("invalidates cache on PUT", async () => {
@@ -105,12 +107,13 @@ describe("cache middleware", () => {
         res.json({ updated: true });
       });
 
-      mockRedisInstance.eval.mockResolvedValue(1);
+      mockRedisInstance.scan.mockResolvedValue(["0", ["cache:/api/products/456"]]);
+      mockRedisInstance.unlink.mockResolvedValue(1);
 
       const response = await request(app).put("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedisInstance.eval).toHaveBeenCalled();
+      expect(mockRedisInstance.scan).toHaveBeenCalled();
     });
 
     it("invalidates cache on DELETE", async () => {
@@ -119,12 +122,13 @@ describe("cache middleware", () => {
         res.json({ deleted: true });
       });
 
-      mockRedisInstance.eval.mockResolvedValue(2);
+      mockRedisInstance.scan.mockResolvedValue(["0", ["cache:/api/products/789"]]);
+      mockRedisInstance.unlink.mockResolvedValue(1);
 
       const response = await request(app).delete("/api/test");
 
       expect(response.statusCode).toBe(200);
-      expect(mockRedisInstance.eval).toHaveBeenCalled();
+      expect(mockRedisInstance.scan).toHaveBeenCalled();
     });
 
     it("does not invalidate cache on error responses", async () => {
@@ -136,7 +140,8 @@ describe("cache middleware", () => {
       const response = await request(app).post("/api/test");
 
       expect(response.statusCode).toBe(400);
-      expect(mockRedisInstance.eval).not.toHaveBeenCalled();
+      expect(mockRedisInstance.scan).not.toHaveBeenCalled();
+      expect(mockRedisInstance.unlink).not.toHaveBeenCalled();
     });
 
     it("handles cache invalidation errors gracefully", async () => {
@@ -145,7 +150,7 @@ describe("cache middleware", () => {
         res.json({ created: true });
       });
 
-      mockRedisInstance.eval.mockRejectedValue(new Error("Invalidation error"));
+      mockRedisInstance.scan.mockRejectedValue(new Error("Invalidation error"));
 
       const response = await request(app).post("/api/test");
 
