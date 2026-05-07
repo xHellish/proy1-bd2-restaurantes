@@ -1,6 +1,7 @@
 module.exports = {
   testEnvironment: "node",
   testMatch: ["**/tests/**/*.test.js"],
+  testPathIgnorePatterns: ["/node_modules/", "/tests/integration/"],
   coverageReporters: ["json-summary", "lcov", "clover", "text"],
   collectCoverageFrom: [
     "src/**/*.js",
@@ -18,5 +19,7 @@ module.exports = {
       lines: 90,
       statements: 90
     }
-  }
+  },
+  setupFiles: ["<rootDir>/tests/setup.env.js"]
 };
+
