@@ -6,6 +6,7 @@ const router = express.Router();
 function requireReindexAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   const apiKey = req.headers["x-api-key"];
+  const reindexToken = req.headers["x-reindex-token"];
   const envToken = process.env.SEARCH_REINDEX_TOKEN;
 
   if (!envToken) {
@@ -22,6 +23,11 @@ function requireReindexAuth(req, res, next) {
 
   // Validar API key
   if (apiKey && apiKey === envToken) {
+    return next();
+  }
+
+  // Validar x-reindex-token
+  if (reindexToken && reindexToken === envToken) {
     return next();
   }
 

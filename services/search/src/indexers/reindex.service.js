@@ -40,9 +40,9 @@ async function fetchFromMongo() {
   const Restaurant = mongoose.models.Restaurant || mongoose.model("Restaurant", restaurantSchema);
   const Product = mongoose.models.Product || mongoose.model("Product", productSchema);
 
-  const restaurants = (await Restaurant.find({}).lean()).map(r => ({ ...r, id: String(r._id) }));
-  const products = (await Product.find({}).populate("categoryId").lean()).map(p => ({
-    ...p, id: String(p._id),
+  const restaurants = (await Restaurant.find({}).lean()).map(({ _id, __v, ...r }) => ({ ...r, id: String(_id) }));
+  const products = (await Product.find({}).populate("categoryId").lean()).map(({ _id, __v, ...p }) => ({
+    ...p, id: String(_id),
     categoryId: p.categoryId ? String(p.categoryId._id || p.categoryId) : null
   }));
 

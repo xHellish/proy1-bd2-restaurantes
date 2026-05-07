@@ -41,7 +41,7 @@ router.get("/", async (req, res) => {
             {
               multi_match: {
                 query: q,
-                fields: ["name^3", "description", "price"]
+                fields: ["name^3", "description"]
               }
             }
           ],
@@ -56,7 +56,7 @@ router.get("/", async (req, res) => {
       query = {
         multi_match: {
           query: q,
-          fields: ["name^3", "description", "price"]
+          fields: ["name^3", "description"]
         }
       };
     }
