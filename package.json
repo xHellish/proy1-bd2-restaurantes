@@ -11,6 +11,7 @@
     "dev:api": "npm run dev --workspace services/api",
     "dev:search": "npm run dev --workspace services/search",
     "test": "npm run test --workspace services/api && npm run test --workspace services/search",
+    "test:integration": "docker compose -f docker-compose.test.yml up --build --abort-on-container-exit",
     "lint": "npm run lint --workspace services/api && npm run lint --workspace services/search",
     "seed:postgres": "DB_ENGINE=postgres node infra/scripts/seed-data.js",
     "seed:mongodb": "DB_ENGINE=mongodb node infra/scripts/seed-data.js",

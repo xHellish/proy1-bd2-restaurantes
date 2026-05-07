@@ -479,7 +479,3 @@ PY01_Restaurantes/
 ├── .env                            # Variables de entorno
 └── ARCHITECTURE.md                 # Documentación C4 + data flows
 ```
-
----
-
-> **Bases de Datos 2 — Universidad del Valle de Guatemala**

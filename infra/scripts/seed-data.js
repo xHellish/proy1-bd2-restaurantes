@@ -135,8 +135,13 @@ const bcrypt = require("bcryptjs");
 const dbEngine = process.env.DB_ENGINE || "postgres";
 
 async function seedPostgres() {
-  const { PrismaClient } = require("@prisma/client");
-  const prisma = new PrismaClient();
+  // Reuse the app's db config which already handles Prisma 7 driver adapter setup
+  const { getPrismaClient } = require("../../services/api/src/config/db");
+  const prisma = getPrismaClient();
+
+  if (!prisma) {
+    throw new Error("Could not initialize PrismaClient. Check DATABASE_URL is set.");
+  }
 
   try {
     console.log("Cleaning existing data...");
